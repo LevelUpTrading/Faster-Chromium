@@ -232,6 +232,10 @@
           if (url.origin !== location.origin) return;
           if (url.pathname === location.pathname) return;
           if (!url.protocol.startsWith('http')) return;
+          // Skip URLs with query params (may contain tokens, trigger side effects)
+          if (url.search) return;
+          // Skip paths that commonly trigger state-changing actions
+          if (/\/(logout|signout|delete|remove|unsubscribe|revoke)/i.test(url.pathname)) return;
 
           requestIdleCallback(() => {
             if (prefetched.size >= MAX_PREFETCH) return;
