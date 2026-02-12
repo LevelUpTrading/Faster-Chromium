@@ -39,7 +39,9 @@
 
   if (injectedSettings.passiveListeners) {
     const originalAddEventListener = EventTarget.prototype.addEventListener;
-    const passiveEvents = new Set(['touchstart', 'touchmove', 'wheel', 'scroll', 'mousewheel']);
+    // Only touch and scroll events — NOT wheel/mousewheel, which need preventDefault()
+    // for custom scroll containers, zoom prevention, carousels, etc.
+    const passiveEvents = new Set(['touchstart', 'touchmove', 'scroll']);
 
     EventTarget.prototype.addEventListener = function(type, listener, options) {
       if (passiveEvents.has(type)) {
