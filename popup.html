@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faster Chromium</title>
+  <style>
+    :root {
+      --bg-primary: #09090b;
+      --bg-secondary: #0f0f11;
+      --bg-tertiary: #16161a;
+      --bg-hover: #1c1c21;
+      --bg-active: #232329;
+      --border-subtle: #232329;
+      --border-default: #2e2e35;
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-tertiary: #71717a;
+      --text-muted: #52525b;
+      --accent-primary: #22c55e;
+      --accent-primary-hover: #16a34a;
+      --accent-primary-subtle: rgba(34, 197, 94, 0.08);
+      --accent-primary-border: rgba(34, 197, 94, 0.2);
+      --accent-warning: #f59e0b;
+      --accent-warning-subtle: rgba(245, 158, 11, 0.08);
+      --accent-warning-border: rgba(245, 158, 11, 0.2);
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+      --transition-fast: 120ms ease;
+      --transition-normal: 180ms ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-primary) 0%, #15803d 100%);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-sm), 0 0 12px rgba(34, 197, 94, 0.2);
+    }
+
+    .brand-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: white;
+    }
+
+    .brand-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .brand-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-status {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      box-shadow: 0 0 8px var(--accent-primary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status-indicator.inactive {
+      background: var(--text-muted);
+      box-shadow: none;
+      animation: none;
+    }
+
+    /* Master Toggle */
+    .master-toggle {
+      position: relative;
+      width: 42px;
+      height: 22px;
+      background: var(--bg-active);
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background var(--transition-normal);
+    }
+
+    .master-toggle.active {
+      background: var(--accent-primary);
+    }
+
+    .master-toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      transition: all var(--transition-normal);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .master-toggle.active .master-toggle-knob {
+      transform: translateX(20px);
+      background: white;
+    }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .stat {
+      background: var(--bg-secondary);
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+
+    .stat-value.accent {
+      color: var(--accent-primary);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-top: 2px;
+    }
+
+    /* Content */
+    .content {
+      padding: 14px 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .content::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: var(--border-default);
+      border-radius: 2px;
+    }
+
+    /* Alert */
+    .alert {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--accent-primary-subtle);
+      border: 1px solid var(--accent-primary-border);
+      border-radius: var(--radius-md);
+      margin-bottom: 14px;
+    }
+
+    .alert.warning {
+      background: var(--accent-warning-subtle);
+      border-color: var(--accent-warning-border);
+    }
+
+    .alert-icon {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      margin-top: 1px;
+    }
+
+    .alert-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: var(--accent-primary);
+    }
+
+    .alert.warning .alert-icon svg {
+      fill: var(--accent-warning);
+    }
+
+    .alert-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .alert-title {
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--text-primary);
+    }
+
+    .alert-text {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+      line-height: 1.4;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 14px;
+    }
+
+    .section:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .section-tag {
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Options */
+    .options {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .option:last-child {
+      border-bottom: none;
+    }
+
+    .option:hover {
+      background: var(--bg-hover);
+    }
+
+    .option-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .option-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .option-icon svg {
+      width: 14px;
+      height: 14px;
+      fill: var(--text-tertiary);
+    }
+
+    .option-text {
+      min-width: 0;
+    }
+
+    .option-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .option-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* Toggle Switch */
+    .toggle {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      background: var(--bg-active);
+      border-radius: 9px;
+      flex-shrink: 0;
+      transition: background var(--transition-normal);
+    }
+
+    .toggle.checked {
+      background: var(--accent-primary);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      transition: all var(--transition-normal);
+    }
+
+    .toggle.checked::after {
+      transform: translateX(14px);
+      background: white;
+    }
+
+    /* Actions */
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 12px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .btn svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .btn-ghost {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-default);
+    }
+
+    .btn-ghost svg {
+      fill: currentColor;
+    }
+
+    .btn-solid {
+      background: var(--accent-primary);
+      color: white;
+    }
+
+    .btn-solid:hover {
+      background: var(--accent-primary-hover);
+    }
+
+    .btn-solid svg {
+      fill: white;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .footer-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .footer-version {
+      font-weight: 600;
+      color: var(--text-tertiary);
+    }
+
+    .footer-link {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+    }
+
+    .footer-link:hover {
+      color: var(--text-secondary);
+    }
+
+    /* Disabled State */
+    body.disabled .stat-value.accent {
+      color: var(--text-muted);
+    }
+
+    body.disabled .status-indicator {
+      background: var(--text-muted);
+      box-shadow: none;
+      animation: none;
+    }
+
+    body.disabled .brand-icon {
+      background: linear-gradient(135deg, var(--text-muted) 0%, var(--bg-active) 100%);
+      box-shadow: var(--shadow-sm);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+      </div>
+      <div class="brand-info">
+        <span class="brand-name">Faster Chromium</span>
+        <span class="brand-status">
+          <span class="status-indicator" id="statusIndicator"></span>
+          <span id="statusText">Active</span>
+        </span>
+      </div>
+    </div>
+    <div class="master-toggle active" id="mainToggle">
+      <div class="master-toggle-knob"></div>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value accent" id="activeFeatures">0</div>
+      <div class="stat-label">Active</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="imagesOptimized">0</div>
+      <div class="stat-label">Images</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value accent" id="estSaved">~0ms</div>
+      <div class="stat-label">Est. Saved</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <main class="content">
+    <!-- Alert -->
+    <div class="alert" id="alertBanner">
+      <div class="alert-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+        </svg>
+      </div>
+      <div class="alert-body">
+        <div class="alert-title">Optimizations Active</div>
+        <div class="alert-text" id="alertText">Improving page speed and rendering performance.</div>
+      </div>
+    </div>
+
+    <!-- Resource Loading Section -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-title">Resource Loading</span>
+        <span class="section-tag">Network</span>
+      </div>
+      <div class="options">
+        <div class="option" data-setting="prefetchDNS">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">DNS Prefetch</div>
+              <div class="option-desc">Preconnect to third-party domains</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="preloadLCP">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Preload Hero Image</div>
+              <div class="option-desc">Prioritize largest visible image</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="optimizeImagePriority">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Image Priority</div>
+              <div class="option-desc">Optimize fetch & decode order</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="lazyLoadImages">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Lazy Load Images</div>
+              <div class="option-desc">Defer off-screen images</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="lazyLoadIframes">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M19 4H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12zM7 8h10v2H7z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Lazy Load Iframes</div>
+              <div class="option-desc">Defer off-screen embeds</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="reduceMediaPreload">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM10 8v8l5-4z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Reduce Media Preload</div>
+              <div class="option-desc">Prevent full video/audio download</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="prefetchLinks">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Prefetch Links</div>
+              <div class="option-desc">Preload visible links on idle</div>
+            </div>
+          </div>
+          <div class="toggle"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rendering Section -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-title">Rendering</span>
+        <span class="section-tag">Visual</span>
+      </div>
+      <div class="options">
+        <div class="option" data-setting="disableAnimations">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M4 19h16v2H4v-2zm5-4h11v2H9v-2zm-5-4h16v2H4v-2zm0-8h16v2H4V3zm5 4h11v2H9V7z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Disable Animations</div>
+              <div class="option-desc">Remove CSS transitions</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="disableAutoplay">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Stop Autoplay</div>
+              <div class="option-desc">Pause media playback</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="fontDisplaySwap">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M9.93 13.5h4.14L12 7.98 9.93 13.5zM20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-4.05 16.5l-1.14-3H9.17l-1.12 3H5.96l5.11-13h1.86l5.11 13h-2.09z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Font Display Swap</div>
+              <div class="option-desc">Prevent invisible text flash</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="nonBlockingCSS">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h12v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Non-Blocking CSS</div>
+              <div class="option-desc">Load stylesheets asynchronously</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="contentVisibility">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Content Visibility</div>
+              <div class="option-desc">Skip rendering off-screen content</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="stabilizeLayout">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.99h18v14.02z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Stabilize Layout</div>
+              <div class="option-desc">Reduce layout shifts (CLS)</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scripts & Interaction Section -->
+    <section class="section">
+      <div class="section-head">
+        <span class="section-title">Scripts & Interaction</span>
+        <span class="section-tag">Runtime</span>
+      </div>
+      <div class="options">
+        <div class="option" data-setting="throttleTimers">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Throttle Timers</div>
+              <div class="option-desc">Reduce CPU usage</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="passiveListeners">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Passive Listeners</div>
+              <div class="option-desc">Smooth scroll & touch</div>
+            </div>
+          </div>
+          <div class="toggle checked"></div>
+        </div>
+
+        <div class="option" data-setting="deferScripts">
+          <div class="option-left">
+            <div class="option-icon">
+              <svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Defer Scripts</div>
+              <div class="option-desc">Delay non-critical scripts</div>
+            </div>
+          </div>
+          <div class="toggle"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button class="btn btn-ghost" id="refreshBtn">
+        <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        Refresh Page
+      </button>
+      <button class="btn btn-solid" id="resetBtn">
+        <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+        Reset
+      </button>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-meta">
+      <span class="footer-version">v2.0.0</span>
+      <span>·</span>
+      <span>Faster Chromium</span>
+    </div>
+    <a href="#" class="footer-link" id="helpLink">Docs</a>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
